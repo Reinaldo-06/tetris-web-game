@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TETRIS IA - Retro Neon Game</title>
+    <title>TETRIS AVANZADO - Retro Neon Game</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,6 +11,7 @@
     <div id="startScreen" class="start-screen">
         <div class="start-container">
             <h1 class="title">Prompt TETRIS</h1>
+            <p class="subtitle">Versión Avanzada 2.0</p>
             
             <div class="config-section">
                 <label for="boardSize">Tamaño del tablero:</label>
@@ -19,6 +20,15 @@
                     <option value="15x20">15x20 (Ancho)</option>
                     <option value="8x16">8x16 (Mini)</option>
                 </select>
+            </div>
+
+            <div class="config-section">
+                <label for="gameMode">Modo de juego:</label>
+                <select id="gameMode">
+                    <option value="classic">Clásico - Tetris tradicional</option>
+                    <option value="challenge">Desafío - Más difícil y rápido</option>
+                </select>
+                <p class="mode-description" id="modeDescription">Tetris clásico tradicional</p>
             </div>
             
             <div class="config-section">
@@ -34,6 +44,18 @@
             </div>
             
             <button id="startButton" class="start-button">Iniciar juego</button>
+
+            <!-- Botón para ver récords -->
+            <button id="viewScoresButton" class="view-scores-button">📊 Ver Récords</button>
+        </div>
+    </div>
+
+    <!-- Modal de récords -->
+    <div id="recordsModal" class="modal hidden">
+        <div class="modal-content records-modal">
+            <h2>🏆 Récords Locales</h2>
+            <div id="recordsContent"></div>
+            <button id="closeRecordsButton" class="modal-button">Cerrar</button>
         </div>
     </div>
 
@@ -42,6 +64,9 @@
         <div class="game-wrapper">
             <!-- Panel principal -->
             <div class="main-panel">
+                <div class="controls-hint">
+                    R: Reiniciar | P: Pausa | ESC: Menú | M: Sonido
+                </div>
                 <canvas id="gameCanvas" width="300" height="600"></canvas>
                 <div class="hud">
                     <div class="hud-item">
@@ -61,12 +86,33 @@
                         <span id="speed" class="hud-value">Lento</span>
                     </div>
                 </div>
+                <div class="game-stats">
+                    <div class="stat-item">
+                        Modo: <span id="mode" class="stat-value">Clásico</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- Panel lateral con pieza siguiente -->
+            <!-- Panel lateral -->
             <div class="side-panel">
+                <div class="sound-control">
+                    <button id="soundToggleBtn" class="sound-button">🔊</button>
+                </div>
                 <h3 class="next-title">Siguiente</h3>
                 <canvas id="nextPieceCanvas" width="120" height="120"></canvas>
+                <div class="keyboard-help">
+                    <h4>Controles</h4>
+                    <ul>
+                        <li>← → : Mover</li>
+                        <li>↓ : Bajar</li>
+                        <li>ESPACIO : Hard Drop</li>
+                        <li>Z / ↑ : Rotar</li>
+                        <li><strong>P</strong> : Pausa</li>
+                        <li><strong>R</strong> : Reiniciar</li>
+                        <li><strong>ESC</strong> : Menú</li>
+                        <li><strong>M</strong> : Sonido</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -75,8 +121,15 @@
     <div id="gameOverModal" class="modal hidden">
         <div class="modal-content">
             <h2>GAME OVER</h2>
-            <p>Puntuación final: <span id="finalScore">0</span></p>
-            <p>Líneas completadas: <span id="finalLines">0</span></p>
+            <div class="game-over-stats">
+                <p>Puntuación final: <span id="finalScore" class="stat-value">0</span></p>
+                <p>Líneas completadas: <span id="finalLines" class="stat-value">0</span></p>
+                <p>Nivel alcanzado: <span id="finalLevel" class="stat-value">1</span></p>
+                <p>Modo: <span id="finalMode" class="stat-value">Clásico</span></p>
+            </div>
+            <hr>
+            <h3>🏆 Récords Actuales</h3>
+            <div id="highScoresDisplay"></div>
             <button id="restartButton" class="modal-button">Reiniciar</button>
             <button id="menuButton" class="modal-button secondary">Volver al menú</button>
         </div>

@@ -1,10 +1,9 @@
 /* ============================================
-   TETRIS IA - LÓGICA DEL JUEGO
+   TETRIS AVANZADO - LÓGICA DEL JUEGO v2.0
    ============================================ */
 
 // ============ CONFIGURACIÓN INICIAL ============
 
-// Configuración del tablero
 let COLS = 10;
 let ROWS = 20;
 
@@ -18,19 +17,63 @@ const LEVEL_SPEEDS = {
     6: 50    // Caos
 };
 
+// ============ MODOS DE JUEGO ============
+const GAME_MODES = {
+    CLASSIC: 'classic',
+    CHALLENGE: 'challenge'
+};
+
+const MODE_CONFIG = {
+    classic: {
+        name: 'Clásico',
+        speedMultiplier: 1.0,
+        levelUpMultiplier: 1.0,
+        allowGameOver: true,
+        description: 'Tetris clásico tradicional'
+    },
+    challenge: {
+        name: 'Desafío',
+        speedMultiplier: 1.2,
+        levelUpMultiplier: 1.5,
+        allowGameOver: true,
+        description: 'Más difícil y rápido'
+    }
+};
+
 // ============ SISTEMA DE AUDIO RETRO ============
 
 let audioContext = null;
+let soundEnabled = true;
 
 function initAudio() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
+    // Cargar preferencia de sonido de localStorage
+    const savedSoundState = localStorage.getItem('soundEnabled');
+    if (savedSoundState !== null) {
+        soundEnabled = JSON.parse(savedSoundState);
+    }
+    updateSoundButton();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
+    updateSoundButton();
+}
+
+function updateSoundButton() {
+    const btn = document.getElementById('soundToggleBtn');
+    if (btn) {
+        btn.textContent = soundEnabled ? '🔊' : '🔇';
+        btn.classList.toggle('muted', !soundEnabled);
+    }
 }
 
 // Sonido para rotar (beep corto agudo)
 function playRotateSound() {
-    if (!audioContext) return;
+    if (!audioContext || !soundEnabled) return;
     const now = audioContext.currentTime;
     const osc = audioContext.createOscillator();
     const gain = audioContext.createGain();
@@ -49,7 +92,7 @@ function playRotateSound() {
 
 // Sonido para fijar pieza (dos beeps)
 function playFixSound() {
-    if (!audioContext) return;
+    if (!audioContext || !soundEnabled) return;
     const now = audioContext.currentTime;
     
     // Primer beep
@@ -77,7 +120,7 @@ function playFixSound() {
 
 // Sonido para completar línea (sonido "victoria" rápido)
 function playClearSound() {
-    if (!audioContext) return;
+    if (!audioContext || !soundEnabled) return;
     const now = audioContext.currentTime;
     const frequencies = [523, 659, 784]; // Do, Mi, Sol
     
@@ -99,7 +142,7 @@ function playClearSound() {
 
 // Sonido para subir de nivel (fanfarria corta)
 function playLevelUpSound() {
-    if (!audioContext) return;
+    if (!audioContext || !soundEnabled) return;
     const now = audioContext.currentTime;
     const frequencies = [659, 784, 987, 1175]; // Mi, Sol, Si, Re
     
@@ -121,7 +164,7 @@ function playLevelUpSound() {
 
 // Sonido para Game Over (nota grave y descendente)
 function playGameOverSound() {
-    if (!audioContext) return;
+    if (!audioContext || !soundEnabled) return;
     const now = audioContext.currentTime;
     const osc = audioContext.createOscillator();
     const gain = audioContext.createGain();
@@ -138,122 +181,109 @@ function playGameOverSound() {
     osc.stop(now + 0.5);
 }
 
-// Colores de piezas (formato RGB para canvas)
+// Música adaptativa simple (base de frecuencia)
+function playAdaptiveMusic() {
+    if (!audioContext || !soundEnabled) return;
+    const now = audioContext.currentTime;
+    
+    const speedMultiplier = currentGameMode === GAME_MODES.CHALLENGE ? 1.3 : 1.0;
+    const baseFreq = level <= 3 ? 220 : level <= 5 ? 262 : 330;
+    
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.2, now + 0.1 * speedMultiplier);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.8, now + 0.2 * speedMultiplier);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.3 * speedMultiplier);
+    
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3 * speedMultiplier);
+    
+    osc.start(now);
+    osc.stop(now + 0.3 * speedMultiplier);
+}
+
+// Colores de piezas
 const PIECE_COLORS = {
-    I: '#00ffff',  // Cian
-    O: '#ffff00',  // Amarillo
-    T: '#ff00ff',  // Morado
-    L: '#ff8800',  // Naranja
-    J: '#0088ff',  // Azul
-    S: '#00ff00',  // Verde
-    Z: '#ff0000'   // Rojo
+    I: '#00ffff',
+    O: '#ffff00',
+    T: '#ff00ff',
+    L: '#ff8800',
+    J: '#0088ff',
+    S: '#00ff00',
+    Z: '#ff0000'
 };
 
-// Definición de tetrominos (piezas)
-// Cada pieza tiene 4 rotaciones explícitas como arrays de coordenadas {x, y} relativas
+// Definición de tetrominos
 const TETROMINOS = {
-  // Pieza I: barra de 4 bloques
-  I: {
-    color: 'I',
-    rotations: [
-      // Rotación 0: horizontal
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 } ],
-      // Rotación 1: vertical
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3 } ],
-      // Rotación 2: horizontal (igual a 0)
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 } ],
-      // Rotación 3: vertical (igual a 1)
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3 } ]
-    ]
-  },
-
-  // Pieza O: cuadrado 2x2 (no rota visualmente)
-  O: {
-    color: 'O',
-    rotations: [
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ]
-    ]
-  },
-
-  // Pieza T: forma de T
-  T: {
-    color: 'T',
-    rotations: [
-      // Rotación 0: T estándar
-      [ { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
-      // Rotación 1: T girada 90°
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 } ],
-      // Rotación 2: T al revés
-      [ { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 } ],
-      // Rotación 3: T girada 270°
-      [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 } ]
-    ]
-  },
-
-  // Pieza S: forma de S (zigzag)
-  S: {
-    color: 'S',
-    rotations: [
-      // Rotación 0: S horizontal
-      [ { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
-      // Rotación 1: S vertical
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
-      // Rotación 2: S horizontal (igual a 0)
-      [ { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
-      // Rotación 3: S vertical (igual a 1)
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 } ]
-    ]
-  },
-
-  // Pieza Z: forma de Z (zigzag inverso)
-  Z: {
-    color: 'Z',
-    rotations: [
-      // Rotación 0: Z horizontal
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
-      // Rotación 1: Z vertical
-      [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 } ],
-      // Rotación 2: Z horizontal (igual a 0)
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
-      // Rotación 3: Z vertical (igual a 1)
-      [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 } ]
-    ]
-  },
-
-  // Pieza J: L invertida (espejo de L)
-  J: {
-    color: 'J',
-    rotations: [
-      // Rotación 0: L invertida estándar
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 1, y: 2 } ],
-      // Rotación 1: J girada 90°
-      [ { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 0 } ],
-      // Rotación 2: J girada 180°
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
-      // Rotación 3: J girada 270°
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 } ]
-    ]
-  },
-
-  // Pieza L: L estándar
-  L: {
-    color: 'L',
-    rotations: [
-      // Rotación 0: L estándar
-      [ { x: 0, y: 2 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
-      // Rotación 1: L girada 90°
-      [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
-      // Rotación 2: L girada 180°
-      [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
-      // Rotación 3: L girada 270°
-      [ { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 0 } ]
-    ]
-  }
+    I: {
+        color: 'I',
+        rotations: [
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3 } ]
+        ]
+    },
+    O: {
+        color: 'O',
+        rotations: [
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ]
+        ]
+    },
+    T: {
+        color: 'T',
+        rotations: [
+            [ { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 } ],
+            [ { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 } ],
+            [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 } ]
+        ]
+    },
+    S: {
+        color: 'S',
+        rotations: [
+            [ { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
+            [ { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 } ]
+        ]
+    },
+    Z: {
+        color: 'Z',
+        rotations: [
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
+            [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
+            [ { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 } ]
+        ]
+    },
+    J: {
+        color: 'J',
+        rotations: [
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 1, y: 2 } ],
+            [ { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 0 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 } ]
+        ]
+    },
+    L: {
+        color: 'L',
+        rotations: [
+            [ { x: 0, y: 2 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
+            [ { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 } ],
+            [ { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 2 } ],
+            [ { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 0 } ]
+        ]
+    }
 };
-
 
 // ============ VARIABLES DE ESTADO ============
 
@@ -262,56 +292,117 @@ let currentPiece = null;
 let nextPiece = null;
 let gameRunning = false;
 let gamePaused = false;
+let currentGameMode = GAME_MODES.CLASSIC;
 
 let score = 0;
 let lines = 0;
 let level = 1;
-let minLevel = 1; // El nivel mínimo que el jugador puede alcanzar (establecido al iniciar)
+let minLevel = 1;
 let dropSpeed = LEVEL_SPEEDS[1];
 
 let lastDropTime = 0;
 let gameLoopId = null;
 
-// Canvas y contextos
+// Canvas
 let gameCanvas = null;
 let gameCtx = null;
 let nextCanvas = null;
 let nextCtx = null;
+let cellSize = 20;
 
-// Animación de explosión de líneas
+// Animación de líneas
 let clearingLines = [];
 let clearingAnimationTime = 0;
-const CLEAR_ANIMATION_DURATION = 250; // ms
+const CLEAR_ANIMATION_DURATION = 250;
 
-// Efectos visuales de nivel
+// Efectos visuales
 let levelUpAnimationTime = 0;
-const LEVEL_UP_ANIMATION_DURATION = 500; // ms
+const LEVEL_UP_ANIMATION_DURATION = 500;
 let boardGlowIntensity = 0.5;
-const NEON_COLORS = [
-    '#00ff88', // Verde neón
-    '#00ffff', // Cian neón
-    '#ff00ff', // Magenta neón
-    '#ffff00', // Amarillo neón
-    '#ff6600'  // Naranja neón
-];
+const NEON_COLORS = ['#00ff88', '#00ffff', '#ff00ff', '#ffff00', '#ff6600'];
 let currentNeonColorIndex = 0;
 
-// ============ ESTRUCTURA DE PIEZAS ============
+// ============ SISTEMA DE PARTÍCULAS ============
+
+let particles = [];
+
+class Particle {
+    constructor(x, y, vx, vy, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.life = 1.0;
+        this.maxLife = 1.0;
+    }
+
+    update(deltaTime) {
+        this.x += this.vx * deltaTime;
+        this.y += this.vy * deltaTime;
+        this.vy += 0.02 * deltaTime; // Gravedad
+        this.life -= deltaTime / 1000; // Decrece con tiempo
+    }
+
+    draw(ctx, cellSize) {
+        const alpha = this.life / this.maxLife;
+        ctx.fillStyle = this.color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+        ctx.fillRect(
+            this.x * cellSize + 5,
+            this.y * cellSize + 5,
+            4, 4
+        );
+    }
+
+    isAlive() {
+        return this.life > 0;
+    }
+}
+
+function createParticles(y, colorType) {
+    const baseColor = PIECE_COLORS[colorType];
+    const rgbColor = hexToRgb(baseColor);
+    
+    for (let i = 0; i < 10; i++) {
+        const angle = (Math.PI * 2 * i) / 10;
+        const speed = 0.5 + Math.random() * 1.0;
+        const p = new Particle(
+            COLS / 2,
+            y,
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed - 0.5,
+            rgbColor
+        );
+        particles.push(p);
+    }
+}
+
+function updateParticles(deltaTime) {
+    particles = particles.filter(p => {
+        p.update(deltaTime);
+        return p.isAlive();
+    });
+}
+
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+// ============ CLASE PIEZA ============
 
 class Piece {
     constructor(type) {
         this.type = type;
         this.shape = TETROMINOS[type];
         this.rotationIndex = 0;
-        // this.blocks siempre apunta a la rotación actual (array de {x, y} relativos)
         this.blocks = this.shape.rotations[this.rotationIndex];
-        // Posición en el tablero
         this.x = Math.floor(COLS / 2) - 1;
         this.y = 0;
     }
 
-    // Obtener bloques con coordenadas absolutas (tablero)
-    // Suma (piece.x, piece.y) a cada bloque relativo
     getAbsoluteBlocks() {
         return this.blocks.map(block => ({
             x: this.x + block.x,
@@ -319,14 +410,12 @@ class Piece {
         }));
     }
 
-    // Rotar a la siguiente rotación
     rotate() {
         const nextIndex = (this.rotationIndex + 1) % this.shape.rotations.length;
         this.rotationIndex = nextIndex;
         this.blocks = this.shape.rotations[nextIndex];
     }
 
-    // Deshacer la última rotación (rollback)
     undoRotate() {
         const prevIndex = (this.rotationIndex - 1 + this.shape.rotations.length) % this.shape.rotations.length;
         this.rotationIndex = prevIndex;
@@ -337,10 +426,8 @@ class Piece {
 // ============ INICIALIZACIÓN DEL JUEGO ============
 
 function initGame() {
-    // Inicializar audio
     initAudio();
     
-    // Crear tablero vacío
     board = [];
     for (let y = 0; y < ROWS; y++) {
         board[y] = [];
@@ -351,10 +438,14 @@ function initGame() {
 
     score = 0;
     lines = 0;
-    // IMPORTANTE: Establecer el nivel desde el menú y guardarlo como mínimo
     level = parseInt(document.getElementById('gameLevel').value);
-    minLevel = level; // El jugador nunca puede bajar de este nivel
-    dropSpeed = LEVEL_SPEEDS[level];
+    currentGameMode = document.getElementById('gameMode').value;
+    minLevel = level;
+    
+    // Aplicar multiplicadores de modo
+    const modeConfig = MODE_CONFIG[currentGameMode];
+    dropSpeed = LEVEL_SPEEDS[level] / modeConfig.speedMultiplier;
+    
     gameRunning = true;
     gamePaused = false;
     clearingLines = [];
@@ -362,8 +453,9 @@ function initGame() {
     levelUpAnimationTime = 0;
     boardGlowIntensity = 0.5;
     currentNeonColorIndex = 0;
+    particles = [];
 
-    // Generar piezas iniciales
+    // Piezas iniciales
     const pieceTypes = Object.keys(TETROMINOS);
     nextPiece = new Piece(pieceTypes[Math.floor(Math.random() * pieceTypes.length)]);
     spawnNewPiece();
@@ -373,13 +465,43 @@ function initGame() {
     gameLoopId = requestAnimationFrame(gameLoop);
 }
 
-// Generar nueva pieza (la next piece se convierte en actual)
+// ============ REINICIO RÁPIDO (Tecla R) ============
+
+function resetCurrentGame() {
+    if (gameLoopId) {
+        cancelAnimationFrame(gameLoopId);
+    }
+    gamePaused = false;
+    initGame();
+}
+
+// ============ PAUSA (Tecla P) ============
+
+function togglePause() {
+    if (!gameRunning) return;
+    gamePaused = !gamePaused;
+    if (!gamePaused) {
+        lastDropTime = Date.now();
+    }
+}
+
+// ============ VOLVER AL MENÚ (Tecla ESC o H) ============
+
+function backToMenu() {
+    if (gameLoopId) {
+        cancelAnimationFrame(gameLoopId);
+    }
+    gameRunning = false;
+    gamePaused = false;
+    showStartScreen();
+}
+
+// Generar nueva pieza
 function spawnNewPiece() {
     currentPiece = nextPiece;
     const pieceTypes = Object.keys(TETROMINOS);
     nextPiece = new Piece(pieceTypes[Math.floor(Math.random() * pieceTypes.length)]);
 
-    // Verificar si hay colisión inmediata (Game Over)
     if (hasCollision(currentPiece, 0, 0)) {
         gameRunning = false;
         endGame();
@@ -394,12 +516,10 @@ function hasCollision(piece, offsetX, offsetY) {
         const newX = block.x + offsetX;
         const newY = block.y + offsetY;
 
-        // Verificar límites
         if (newX < 0 || newX >= COLS || newY >= ROWS) {
             return true;
         }
 
-        // Verificar colisión con piezas fijas
         if (newY >= 0 && board[newY][newX] !== null) {
             return true;
         }
@@ -407,9 +527,9 @@ function hasCollision(piece, offsetX, offsetY) {
     return false;
 }
 
-// ============ MOVIMIENTO DE PIEZAS ============
+// ============ MOVIMIENTO ============
 
-function movePiece(offsetX, offsetY, isAutoDrop = false) {
+function movePiece(offsetX, offsetY) {
     if (!hasCollision(currentPiece, offsetX, offsetY)) {
         currentPiece.x += offsetX;
         currentPiece.y += offsetY;
@@ -421,39 +541,28 @@ function movePiece(offsetX, offsetY, isAutoDrop = false) {
 function rotatePiece() {
     if (!currentPiece) return;
 
-    // Guardar estado actual por si hay que revertir
     const oldRotationIndex = currentPiece.rotationIndex;
     const oldBlocks = currentPiece.blocks;
 
-    // Aplicar rotación
     currentPiece.rotate();
 
-    // Validar colisión con la nueva rotación
     if (hasCollision(currentPiece, 0, 0)) {
-        // Si hay colisión, revertir (rollback)
         currentPiece.rotationIndex = oldRotationIndex;
         currentPiece.blocks = oldBlocks;
     } else {
-        // Éxito: reproducir sonido de rotación
         playRotateSound();
     }
 }
 
-// Hard Drop: bajar pieza hasta el fondo
 function hardDrop() {
     if (!currentPiece) return;
 
-    // Bajar hasta que colisione
     while (movePiece(0, 1)) {}
 
-    // Fijar pieza
     fixPiece();
     playFixSound();
-
-    // Comprobar líneas completas
     checkAndClearLines();
 
-    // Generar nueva pieza
     if (gameRunning) {
         spawnNewPiece();
     }
@@ -467,17 +576,16 @@ function fixPiece() {
     const blocks = currentPiece.getAbsoluteBlocks();
     for (let block of blocks) {
         if (block.y >= 0 && block.y < ROWS && block.x >= 0 && block.x < COLS) {
-            board[block.y][block.x] = currentPiece.shape.color;
+            board[block.y][block.x] = currentPiece.type;
         }
     }
 }
 
-// ============ DETECCIÓN Y ANIMACIÓN DE LÍNEAS COMPLETAS ============
+// ============ DETECCIÓN Y ANIMACIÓN DE LÍNEAS ============
 
 function checkAndClearLines() {
     clearingLines = [];
 
-    // Detectar líneas completas
     for (let y = ROWS - 1; y >= 0; y--) {
         let isComplete = true;
         for (let x = 0; x < COLS; x++) {
@@ -491,60 +599,48 @@ function checkAndClearLines() {
         }
     }
 
-    // Si hay líneas, iniciar animación
     if (clearingLines.length > 0) {
         clearingAnimationTime = 0;
+        // Crear partículas para cada línea
+        clearingLines.forEach(y => {
+            createParticles(y, 'T');
+        });
     }
 }
 
 function updateLineClearing() {
     if (clearingLines.length === 0) return;
 
-    clearingAnimationTime += 16; // Asumir ~60fps
+    clearingAnimationTime += 16;
 
     if (clearingAnimationTime >= CLEAR_ANIMATION_DURATION) {
-        // Animar terminó, eliminar líneas
-        for (let y of clearingLines.sort((a, b) => a - b)) {
+        // Eliminar líneas
+        clearingLines.sort((a, b) => a - b);
+        for (let y of clearingLines) {
             board.splice(y, 1);
-            board.unshift(Array(COLS).fill(null));
+            board.unshift(new Array(COLS).fill(null));
         }
 
-        // Actualizar puntuación
-        const clearedCount = clearingLines.length;
-        score += clearedCount * 100;
-        lines += clearedCount;
-        
-        // Reproducir sonido de línea completada
-        playClearSound();
+        // Actualizar puntuación y líneas
+        const clearedLineCount = clearingLines.length;
+        lines += clearedLineCount;
+        score += clearedLineCount * 100 * level;
 
-        // Sistema de progresión de dificultad: subir nivel cada 5 líneas
-        // IMPORTANTE: El nivel NUNCA puede ser menor que minLevel (el nivel inicial elegido)
-        // Fórmula: nivel = minLevel + (líneas completadas / 5)
+        // Actualizar nivel con fórmula correcta
+        const modeConfig = MODE_CONFIG[currentGameMode];
         const linesAboveInitial = Math.max(0, lines - (minLevel - 1) * 5);
-        const newLevel = minLevel + Math.floor(linesAboveInitial / 5);
-        
-        if (newLevel !== level) {
-            const oldLevel = level;
+        const newLevel = minLevel + Math.floor(linesAboveInitial / (5 / modeConfig.levelUpMultiplier));
+
+        if (newLevel > level) {
             level = newLevel;
-            
-            // Asegurarse de que el nivel tiene velocidad definida
-            if (LEVEL_SPEEDS[level]) {
-                dropSpeed = LEVEL_SPEEDS[level];
-            } else {
-                // Si se pasa de los niveles predefinidos, aumentar velocidad dinámicamente
-                dropSpeed = Math.max(30, LEVEL_SPEEDS[6] - (level - 6) * 10);
-                LEVEL_SPEEDS[level] = dropSpeed;
-            }
-            
-            // Activar animación de nivel superior
-            levelUpAnimationTime = 0;
-            boardGlowIntensity = 1.0;
-            currentNeonColorIndex = (currentNeonColorIndex + 1) % NEON_COLORS.length;
-            
-            // Reproducir sonido de subida de nivel
+            dropSpeed = LEVEL_SPEEDS[Math.min(level, 6)] / modeConfig.speedMultiplier;
             playLevelUpSound();
+            levelUpAnimationTime = 0;
+            boardGlowIntensity = 1.5;
+            playAdaptiveMusic();
         }
 
+        playClearSound();
         clearingLines = [];
         clearingAnimationTime = 0;
     }
@@ -556,34 +652,20 @@ function drawBoard() {
     gameCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
 
-    // Efecto visual de animación de nivel
     if (levelUpAnimationTime < LEVEL_UP_ANIMATION_DURATION) {
-        levelUpAnimationTime += 16;
         const progress = levelUpAnimationTime / LEVEL_UP_ANIMATION_DURATION;
-        
-        // Crear efecto pulsante en los bordes
-        const pulseIntensity = Math.sin(progress * Math.PI) * 0.3;
-        const neonColor = NEON_COLORS[currentNeonColorIndex];
-        
-        gameCtx.shadowColor = neonColor;
-        gameCtx.shadowBlur = 15 + pulseIntensity * 30;
-        gameCtx.strokeStyle = neonColor;
-        gameCtx.lineWidth = 3;
-        gameCtx.globalAlpha = 0.5 + pulseIntensity * 0.3;
-        gameCtx.strokeRect(0, 0, gameCanvas.width, gameCanvas.height);
-        gameCtx.globalAlpha = 1.0;
-        gameCtx.shadowBlur = 0;
+        const pulse = Math.sin(progress * Math.PI) * 0.5;
+        currentNeonColorIndex = (currentNeonColorIndex + 1) % NEON_COLORS.length;
+        boardGlowIntensity = 1.0 + pulse;
+        levelUpAnimationTime += 16;
     }
-
-    const cellSize = gameCanvas.width / COLS;
 
     // Dibujar celdas fijas
     for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
-            const color = board[y][x];
-            if (color !== null) {
+            if (board[y][x] !== null) {
                 const isClearing = clearingLines.includes(y);
-                drawCell(x, y, color, isClearing);
+                drawCell(x, y, board[y][x], isClearing);
             }
         }
     }
@@ -592,34 +674,40 @@ function drawBoard() {
     if (currentPiece) {
         const blocks = currentPiece.getAbsoluteBlocks();
         for (let block of blocks) {
-            if (block.y >= 0) {
-                drawCell(block.x, block.y, currentPiece.shape.color, false);
-            }
+            drawCell(block.x, block.y, currentPiece.type, false);
         }
     }
 
-    // Dibujar grid (opcional)
+    // Dibujar partículas
+    particles.forEach(p => p.draw(gameCtx, cellSize));
+
+    // Overlay de pausa
+    if (gamePaused) {
+        gameCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+        gameCtx.fillStyle = '#ff00ff';
+        gameCtx.font = 'bold 30px Arial';
+        gameCtx.textAlign = 'center';
+        gameCtx.textBaseline = 'middle';
+        gameCtx.fillText('PAUSA', gameCanvas.width / 2, gameCanvas.height / 2);
+    }
+
     drawGrid();
 }
 
 function drawCell(x, y, colorType, isClearing) {
-    const cellSize = gameCanvas.width / COLS;
     const baseColor = PIECE_COLORS[colorType];
 
     let color = baseColor;
     if (isClearing && clearingAnimationTime < CLEAR_ANIMATION_DURATION) {
-        // Efecto de parpadeo durante la animación
-        const phase = Math.floor((clearingAnimationTime / CLEAR_ANIMATION_DURATION) * 4);
-        if (phase % 2 === 0) {
-            color = '#ffffff'; // Flash blanco
-        }
+        const progress = clearingAnimationTime / CLEAR_ANIMATION_DURATION;
+        const brightness = Math.sin(progress * Math.PI * 4) * 0.5 + 1;
+        color = baseColor;
     }
 
-    // Dibujar celda
     gameCtx.fillStyle = color;
     gameCtx.fillRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
 
-    // Glow neon mejorado según nivel
     const glowIntensity = level <= 2 ? 5 : level <= 4 ? 8 : 12;
     gameCtx.shadowColor = color;
     gameCtx.shadowBlur = glowIntensity * boardGlowIntensity;
@@ -630,11 +718,9 @@ function drawCell(x, y, colorType, isClearing) {
 }
 
 function drawGrid() {
-    const cellSize = gameCanvas.width / COLS;
     gameCtx.strokeStyle = 'rgba(0, 255, 136, 0.1)';
     gameCtx.lineWidth = 0.5;
 
-    // Líneas verticales
     for (let x = 0; x <= COLS; x++) {
         gameCtx.beginPath();
         gameCtx.moveTo(x * cellSize, 0);
@@ -642,7 +728,6 @@ function drawGrid() {
         gameCtx.stroke();
     }
 
-    // Líneas horizontales
     for (let y = 0; y <= ROWS; y++) {
         gameCtx.beginPath();
         gameCtx.moveTo(0, y * cellSize);
@@ -651,59 +736,44 @@ function drawGrid() {
     }
 }
 
-// Dibujar pieza siguiente
 function drawNextPiece() {
     nextCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
 
     if (nextPiece) {
-        // Usar los bloques relativos (NO getAbsoluteBlocks)
-        const blocks = nextPiece.blocks;  // Array de {x, y} relativos
+        const nextCellSize = Math.floor(nextCanvas.width / 5);
+        const blocks = nextPiece.blocks;
+        const offsetX = (nextCanvas.width - nextCellSize * 4) / 2;
+        const offsetY = (nextCanvas.height - nextCellSize * 4) / 2;
 
-        // Calcular bounding box de la pieza
-        let minX = Infinity, maxX = -Infinity;
-        let minY = Infinity, maxY = -Infinity;
+        const color = PIECE_COLORS[nextPiece.type];
         for (let block of blocks) {
-            minX = Math.min(minX, block.x);
-            maxX = Math.max(maxX, block.x);
-            minY = Math.min(minY, block.y);
-            maxY = Math.max(maxY, block.y);
-        }
-
-        // Dimensiones de la pieza
-        const pieceWidth = maxX - minX + 1;
-        const pieceHeight = maxY - minY + 1;
-
-        // Calcular tamaño de celda para que la pieza quepa sin recortes
-        const cellSizeX = (nextCanvas.width - 10) / pieceWidth;
-        const cellSizeY = (nextCanvas.height - 10) / pieceHeight;
-        const cellSize = Math.floor(Math.min(cellSizeX, cellSizeY));
-
-        // Calcular offset para centrar la pieza en el canvas
-        const totalWidth = pieceWidth * cellSize;
-        const totalHeight = pieceHeight * cellSize;
-        const offsetX = (nextCanvas.width - totalWidth) / 2;
-        const offsetY = (nextCanvas.height - totalHeight) / 2;
-
-        // Dibujar bloques
-        const color = PIECE_COLORS[nextPiece.shape.color];
-        for (let block of blocks) {
-            // Ajustar coordenadas al bounding box
-            const px = offsetX + (block.x - minX) * cellSize;
-            const py = offsetY + (block.y - minY) * cellSize;
+            const x = block.x * nextCellSize + offsetX;
+            const y = block.y * nextCellSize + offsetY;
 
             nextCtx.fillStyle = color;
-            nextCtx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
-
-            // Glow neon
-            nextCtx.shadowColor = color;
-            nextCtx.shadowBlur = 4;
+            nextCtx.fillRect(x + 1, y + 1, nextCellSize - 2, nextCellSize - 2);
             nextCtx.strokeStyle = color;
             nextCtx.lineWidth = 1;
-            nextCtx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
-            nextCtx.shadowBlur = 0;
+            nextCtx.strokeRect(x + 1, y + 1, nextCellSize - 2, nextCellSize - 2);
         }
     }
+}
+
+// ============ CANVAS RESPONSIVO ============
+
+function setupResponsiveCanvas() {
+    const container = document.getElementById('gameContainer');
+    const availableWidth = container.clientWidth * 0.6; // 60% del ancho
+    const availableHeight = container.clientHeight * 0.9; // 90% del alto
+
+    cellSize = Math.floor(Math.min(availableWidth / COLS, availableHeight / ROWS));
+    
+    gameCanvas.width = COLS * cellSize;
+    gameCanvas.height = ROWS * cellSize;
+
+    // Reescalar next piece canvas proporcionalmente
+    nextCanvas.width = nextCanvas.height;
 }
 
 // ============ HUD ============
@@ -713,79 +783,143 @@ function updateHUD() {
     document.getElementById('lines').textContent = lines;
     document.getElementById('level').textContent = level;
     
-    // Actualizar indicador de velocidad
     let speedLabel = 'Lento';
     if (level >= 2 && level < 3) speedLabel = 'Medio';
-    else if (level >= 3 && level < 5) speedLabel = 'Rápido';
-    else if (level >= 5) speedLabel = '¡CAOS!';
+    else if (level >= 3 && level < 4) speedLabel = 'Rápido';
+    else if (level >= 4 && level < 5) speedLabel = 'Locura';
+    else if (level >= 5 && level < 6) speedLabel = 'Insano';
+    else if (level >= 6) speedLabel = '¡CAOS!';
     
     document.getElementById('speed').textContent = speedLabel;
+    document.getElementById('mode').textContent = MODE_CONFIG[currentGameMode].name;
 }
 
-// ============ BUCLE PRINCIPAL DEL JUEGO ============
+// ============ HIGH SCORES ============
+
+const HIGH_SCORES_KEY = 'tetrisHighScores';
+const MAX_HIGH_SCORES = 5;
+
+function saveHighScore(score, lines, level, mode) {
+    let scores = JSON.parse(localStorage.getItem(HIGH_SCORES_KEY) || '[]');
+    
+    scores.push({
+        score,
+        lines,
+        level,
+        mode: MODE_CONFIG[mode].name,
+        date: new Date().toLocaleString()
+    });
+
+    scores.sort((a, b) => b.score - a.score);
+    scores = scores.slice(0, MAX_HIGH_SCORES);
+
+    localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores));
+    return scores;
+}
+
+function getHighScores() {
+    return JSON.parse(localStorage.getItem(HIGH_SCORES_KEY) || '[]');
+}
+
+function displayHighScores() {
+    const scores = getHighScores();
+    let html = '<table class="high-scores-table"><tr><th>#</th><th>Puntuación</th><th>Líneas</th><th>Nivel</th><th>Modo</th></tr>';
+    
+    scores.forEach((s, i) => {
+        html += `<tr>
+            <td>${i + 1}</td>
+            <td>${s.score}</td>
+            <td>${s.lines}</td>
+            <td>${s.level}</td>
+            <td>${s.mode}</td>
+        </tr>`;
+    });
+
+    html += '</table>';
+    return html;
+}
+
+// ============ BUCLE PRINCIPAL ============
 
 function gameLoop() {
     if (!gameRunning) {
         return;
     }
 
-    // Actualizar animación de líneas
-    updateLineClearing();
+    if (!gamePaused) {
+        updateLineClearing();
 
-    // Auto-drop: bajar pieza automáticamente según velocidad
-    const now = Date.now();
-    if (now - lastDropTime > dropSpeed) {
-        if (!movePiece(0, 1, true)) {
-            // No puede bajar, fijar pieza
-            fixPiece();
-            playFixSound();
-            checkAndClearLines();
-            if (gameRunning) {
-                spawnNewPiece();
+        const now = Date.now();
+        if (now - lastDropTime > dropSpeed) {
+            if (!movePiece(0, 1)) {
+                fixPiece();
+                playFixSound();
+                checkAndClearLines();
+
+                if (gameRunning) {
+                    spawnNewPiece();
+                }
             }
+            lastDropTime = now;
         }
-        lastDropTime = now;
-    }
-    
-    // Reducir intensidad de glow lentamente
-    if (boardGlowIntensity > 0.5) {
-        boardGlowIntensity -= 0.005;
+
+        if (boardGlowIntensity > 0.5) {
+            boardGlowIntensity -= 0.02;
+        }
+
+        updateParticles(16);
     }
 
-    // Dibujar
     drawBoard();
     drawNextPiece();
     updateHUD();
 
-    // Siguiente frame
     gameLoopId = requestAnimationFrame(gameLoop);
 }
 
-// ============ CONTROLES DEL JUGADOR ============
+// ============ CONTROLES ============
 
 document.addEventListener('keydown', (e) => {
-    if (!gameRunning) return;
+    if (!gameRunning && !gamePaused) return;
 
-    switch (e.key) {
-        case 'ArrowLeft':
+    switch (e.key.toLowerCase()) {
+        case 'arrowleft':
             e.preventDefault();
-            movePiece(-1, 0);
+            if (!gamePaused && gameRunning) movePiece(-1, 0);
             break;
-        case 'ArrowRight':
+        case 'arrowright':
             e.preventDefault();
-            movePiece(1, 0);
+            if (!gamePaused && gameRunning) movePiece(1, 0);
             break;
-        case 'ArrowDown':
+        case 'arrowdown':
             e.preventDefault();
-            movePiece(0, 1);
-            break;
-        case 'ArrowUp':
-            e.preventDefault();
-            rotatePiece();
+            if (!gamePaused && gameRunning) movePiece(0, 1);
             break;
         case ' ':
             e.preventDefault();
-            hardDrop();
+            if (!gamePaused && gameRunning) hardDrop();
+            break;
+        case 'z':
+        case 'arrowup':
+            e.preventDefault();
+            if (!gamePaused && gameRunning) rotatePiece();
+            break;
+        case 'p':
+            e.preventDefault();
+            togglePause();
+            break;
+        case 'r':
+            e.preventDefault();
+            resetCurrentGame();
+            break;
+        case 'escape':
+        case 'h':
+            e.preventDefault();
+            backToMenu();
+            break;
+        case 'm':
+            e.preventDefault();
+            toggleSound();
             break;
     }
 });
@@ -796,12 +930,21 @@ function endGame() {
     gameRunning = false;
     cancelAnimationFrame(gameLoopId);
     playGameOverSound();
+
+    // Guardar high score
+    if (MODE_CONFIG[currentGameMode].allowGameOver) {
+        saveHighScore(score, lines, level, currentGameMode);
+    }
+
     document.getElementById('finalScore').textContent = score;
     document.getElementById('finalLines').textContent = lines;
+    document.getElementById('finalLevel').textContent = level;
+    document.getElementById('finalMode').textContent = MODE_CONFIG[currentGameMode].name;
+    document.getElementById('highScoresDisplay').innerHTML = displayHighScores();
     document.getElementById('gameOverModal').classList.remove('hidden');
 }
 
-// ============ GESTIÓN DEL MENÚ DE INICIO ============
+// ============ GESTIÓN DEL MENÚ ============
 
 function showStartScreen() {
     document.getElementById('startScreen').classList.remove('hidden');
@@ -817,7 +960,6 @@ function hideStartScreen() {
 // ============ EVENT LISTENERS ============
 
 document.getElementById('startButton').addEventListener('click', () => {
-    // Leer configuración del menú
     const boardSizeSelect = document.getElementById('boardSize').value;
     const [cols, rows] = boardSizeSelect.split('x').map(Number);
     COLS = cols;
@@ -825,18 +967,13 @@ document.getElementById('startButton').addEventListener('click', () => {
 
     hideStartScreen();
 
-    // Esperar a que el canvas esté visible para obtener sus dimensiones
     setTimeout(() => {
         gameCanvas = document.getElementById('gameCanvas');
         gameCtx = gameCanvas.getContext('2d');
         nextCanvas = document.getElementById('nextPieceCanvas');
         nextCtx = nextCanvas.getContext('2d');
 
-        // Ajustar tamaño del canvas principal según tablero
-        const cellSize = 30;
-        gameCanvas.width = COLS * cellSize;
-        gameCanvas.height = ROWS * cellSize;
-
+        setupResponsiveCanvas();
         initGame();
     }, 50);
 });
@@ -850,14 +987,51 @@ document.getElementById('restartButton').addEventListener('click', () => {
     nextCanvas = document.getElementById('nextPieceCanvas');
     nextCtx = nextCanvas.getContext('2d');
 
-    initGame();
+    resetCurrentGame();
 });
 
 document.getElementById('menuButton').addEventListener('click', () => {
     showStartScreen();
 });
 
-// Mostrar pantalla de inicio al cargar
+document.getElementById('soundToggleBtn').addEventListener('click', () => {
+    toggleSound();
+});
+
+window.addEventListener('resize', () => {
+    if (gameRunning || gamePaused) {
+        setupResponsiveCanvas();
+    }
+});
+
+document.getElementById('gameMode').addEventListener('change', (e) => {
+    const mode = e.target.value;
+    const descriptions = {
+        classic: 'Tetris clásico tradicional',
+        challenge: 'Más difícil y rápido - 20% velocidad, 50% progresión'
+    };
+    document.getElementById('modeDescription').textContent = descriptions[mode] || '';
+});
+
+document.getElementById('viewScoresButton').addEventListener('click', () => {
+    const recordsContent = document.getElementById('recordsContent');
+    recordsContent.innerHTML = displayHighScores() || '<p>No hay récords aún. ¡Juega tu primera partida!</p>';
+    document.getElementById('recordsModal').classList.remove('hidden');
+});
+
+document.getElementById('closeRecordsButton').addEventListener('click', () => {
+    document.getElementById('recordsModal').classList.add('hidden');
+});
+
 window.addEventListener('DOMContentLoaded', () => {
+    initAudio();
     showStartScreen();
+    
+    // Actualizar descripción de modo por defecto
+    const mode = document.getElementById('gameMode').value;
+    const descriptions = {
+        classic: 'Tetris clásico tradicional',
+        challenge: 'Más difícil y rápido - 20% velocidad, 50% progresión'
+    };
+    document.getElementById('modeDescription').textContent = descriptions[mode] || '';
 });
