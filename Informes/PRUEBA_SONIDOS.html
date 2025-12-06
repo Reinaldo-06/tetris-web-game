@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Prueba de Sonidos - Tetris IA</title>
+    <style>
+        body {
+            background: #1a1a3e;
+            color: #00ff88;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        button {
+            background: #00ff88;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00ffff;
+        }
+        h1 {
+            text-shadow: 0 0 10px #00ff88;
+        }
+        p {
+            max-width: 600px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 Prueba de Sonidos Retro</h1>
+    <p>Haz clic en cada botón para escuchar los efectos de sonido del nuevo Tetris IA:</p>
+    
+    <div>
+        <button onclick="testRotateSound()">Rotar (beep agudo)</button>
+        <button onclick="testFixSound()">Fijar (dos beeps)</button>
+        <button onclick="testClearSound()">Línea (melodía)</button>
+        <button onclick="testLevelUpSound()">Nivel UP (fanfarria)</button>
+        <button onclick="testGameOverSound()">Game Over (nota grave)</button>
+    </div>
+
+    <script>
+        let audioContext = null;
+
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playRotateSound() {
+            if (!audioContext) return;
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            
+            osc.start(now);
+            osc.stop(now + 0.1);
+        }
+
+        function playFixSound() {
+            if (!audioContext) return;
+            const now = audioContext.currentTime;
+            
+            let osc = audioContext.createOscillator();
+            let gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.setValueAtTime(400, now);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+            
+            osc = audioContext.createOscillator();
+            gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.setValueAtTime(500, now + 0.1);
+            gain.gain.setValueAtTime(0.2, now + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+            osc.start(now + 0.1);
+            osc.stop(now + 0.18);
+        }
+
+        function playClearSound() {
+            if (!audioContext) return;
+            const now = audioContext.currentTime;
+            const frequencies = [523, 659, 784];
+            
+            frequencies.forEach((freq, idx) => {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+                gain.gain.setValueAtTime(0.2, now + idx * 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.05 + 0.1);
+                
+                osc.start(now + idx * 0.05);
+                osc.stop(now + idx * 0.05 + 0.1);
+            });
+        }
+
+        function playLevelUpSound() {
+            if (!audioContext) return;
+            const now = audioContext.currentTime;
+            const frequencies = [659, 784, 987, 1175];
+            
+            frequencies.forEach((freq, idx) => {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.15);
+                
+                osc.start(now + idx * 0.08);
+                osc.stop(now + idx * 0.08 + 0.15);
+            });
+        }
+
+        function playGameOverSound() {
+            if (!audioContext) return;
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+
+        function testRotateSound() {
+            initAudio();
+            playRotateSound();
+        }
+
+        function testFixSound() {
+            initAudio();
+            playFixSound();
+        }
+
+        function testClearSound() {
+            initAudio();
+            playClearSound();
+        }
+
+        function testLevelUpSound() {
+            initAudio();
+            playLevelUpSound();
+        }
+
+        function testGameOverSound() {
+            initAudio();
+            playGameOverSound();
+        }
+    </script>
+</body>
+</html>
