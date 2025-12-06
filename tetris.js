@@ -13,8 +13,130 @@ const LEVEL_SPEEDS = {
     1: 800,  // Suave
     2: 500,  // Medio
     3: 300,  // Rápido
-    4: 100   // Locura
+    4: 100,  // Locura
+    5: 70,   // Insano
+    6: 50    // Caos
 };
+
+// ============ SISTEMA DE AUDIO RETRO ============
+
+let audioContext = null;
+
+function initAudio() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+// Sonido para rotar (beep corto agudo)
+function playRotateSound() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    
+    osc.start(now);
+    osc.stop(now + 0.1);
+}
+
+// Sonido para fijar pieza (dos beeps)
+function playFixSound() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    
+    // Primer beep
+    let osc = audioContext.createOscillator();
+    let gain = audioContext.createGain();
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    osc.frequency.setValueAtTime(400, now);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+    osc.start(now);
+    osc.stop(now + 0.08);
+    
+    // Segundo beep
+    osc = audioContext.createOscillator();
+    gain = audioContext.createGain();
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    osc.frequency.setValueAtTime(500, now + 0.1);
+    gain.gain.setValueAtTime(0.2, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+    osc.start(now + 0.1);
+    osc.stop(now + 0.18);
+}
+
+// Sonido para completar línea (sonido "victoria" rápido)
+function playClearSound() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const frequencies = [523, 659, 784]; // Do, Mi, Sol
+    
+    frequencies.forEach((freq, idx) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+        gain.gain.setValueAtTime(0.2, now + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.05 + 0.1);
+        
+        osc.start(now + idx * 0.05);
+        osc.stop(now + idx * 0.05 + 0.1);
+    });
+}
+
+// Sonido para subir de nivel (fanfarria corta)
+function playLevelUpSound() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const frequencies = [659, 784, 987, 1175]; // Mi, Sol, Si, Re
+    
+    frequencies.forEach((freq, idx) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+        gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.15);
+        
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + 0.15);
+    });
+}
+
+// Sonido para Game Over (nota grave y descendente)
+function playGameOverSound() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    
+    osc.start(now);
+    osc.stop(now + 0.5);
+}
 
 // Colores de piezas (formato RGB para canvas)
 const PIECE_COLORS = {
@@ -160,6 +282,19 @@ let clearingLines = [];
 let clearingAnimationTime = 0;
 const CLEAR_ANIMATION_DURATION = 250; // ms
 
+// Efectos visuales de nivel
+let levelUpAnimationTime = 0;
+const LEVEL_UP_ANIMATION_DURATION = 500; // ms
+let boardGlowIntensity = 0.5;
+const NEON_COLORS = [
+    '#00ff88', // Verde neón
+    '#00ffff', // Cian neón
+    '#ff00ff', // Magenta neón
+    '#ffff00', // Amarillo neón
+    '#ff6600'  // Naranja neón
+];
+let currentNeonColorIndex = 0;
+
 // ============ ESTRUCTURA DE PIEZAS ============
 
 class Piece {
@@ -201,6 +336,9 @@ class Piece {
 // ============ INICIALIZACIÓN DEL JUEGO ============
 
 function initGame() {
+    // Inicializar audio
+    initAudio();
+    
     // Crear tablero vacío
     board = [];
     for (let y = 0; y < ROWS; y++) {
@@ -218,6 +356,9 @@ function initGame() {
     gamePaused = false;
     clearingLines = [];
     clearingAnimationTime = 0;
+    levelUpAnimationTime = 0;
+    boardGlowIntensity = 0.5;
+    currentNeonColorIndex = 0;
 
     // Generar piezas iniciales
     const pieceTypes = Object.keys(TETROMINOS);
@@ -265,7 +406,7 @@ function hasCollision(piece, offsetX, offsetY) {
 
 // ============ MOVIMIENTO DE PIEZAS ============
 
-function movePiece(offsetX, offsetY) {
+function movePiece(offsetX, offsetY, isAutoDrop = false) {
     if (!hasCollision(currentPiece, offsetX, offsetY)) {
         currentPiece.x += offsetX;
         currentPiece.y += offsetY;
@@ -289,6 +430,9 @@ function rotatePiece() {
         // Si hay colisión, revertir (rollback)
         currentPiece.rotationIndex = oldRotationIndex;
         currentPiece.blocks = oldBlocks;
+    } else {
+        // Éxito: reproducir sonido de rotación
+        playRotateSound();
     }
 }
 
@@ -301,6 +445,7 @@ function hardDrop() {
 
     // Fijar pieza
     fixPiece();
+    playFixSound();
 
     // Comprobar líneas completas
     checkAndClearLines();
@@ -365,12 +510,33 @@ function updateLineClearing() {
         const clearedCount = clearingLines.length;
         score += clearedCount * 100;
         lines += clearedCount;
+        
+        // Reproducir sonido de línea completada
+        playClearSound();
 
-        // Actualizar nivel (opcional: aumentar cada 10 líneas)
-        const newLevel = Math.floor(lines / 10) + 1;
-        if (newLevel !== level && newLevel <= 4) {
+        // Sistema mejorado de progresión de dificultad
+        // Aumentar nivel cada 5 líneas (en lugar de cada 10)
+        const newLevel = Math.floor(lines / 5) + 1;
+        if (newLevel !== level) {
+            const oldLevel = level;
             level = newLevel;
-            dropSpeed = LEVEL_SPEEDS[level];
+            
+            // Asegurarse de que el nivel tiene velocidad definida
+            if (LEVEL_SPEEDS[level]) {
+                dropSpeed = LEVEL_SPEEDS[level];
+            } else {
+                // Si se pasa de los niveles predefinidos, aumentar velocidad dinámicamente
+                dropSpeed = Math.max(30, LEVEL_SPEEDS[4] - (level - 4) * 15);
+                LEVEL_SPEEDS[level] = dropSpeed;
+            }
+            
+            // Activar animación de nivel superior
+            levelUpAnimationTime = 0;
+            boardGlowIntensity = 1.0;
+            currentNeonColorIndex = (currentNeonColorIndex + 1) % NEON_COLORS.length;
+            
+            // Reproducir sonido de subida de nivel
+            playLevelUpSound();
         }
 
         clearingLines = [];
@@ -383,6 +549,25 @@ function updateLineClearing() {
 function drawBoard() {
     gameCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+    // Efecto visual de animación de nivel
+    if (levelUpAnimationTime < LEVEL_UP_ANIMATION_DURATION) {
+        levelUpAnimationTime += 16;
+        const progress = levelUpAnimationTime / LEVEL_UP_ANIMATION_DURATION;
+        
+        // Crear efecto pulsante en los bordes
+        const pulseIntensity = Math.sin(progress * Math.PI) * 0.3;
+        const neonColor = NEON_COLORS[currentNeonColorIndex];
+        
+        gameCtx.shadowColor = neonColor;
+        gameCtx.shadowBlur = 15 + pulseIntensity * 30;
+        gameCtx.strokeStyle = neonColor;
+        gameCtx.lineWidth = 3;
+        gameCtx.globalAlpha = 0.5 + pulseIntensity * 0.3;
+        gameCtx.strokeRect(0, 0, gameCanvas.width, gameCanvas.height);
+        gameCtx.globalAlpha = 1.0;
+        gameCtx.shadowBlur = 0;
+    }
 
     const cellSize = gameCanvas.width / COLS;
 
@@ -428,9 +613,10 @@ function drawCell(x, y, colorType, isClearing) {
     gameCtx.fillStyle = color;
     gameCtx.fillRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
 
-    // Glow neon
+    // Glow neon mejorado según nivel
+    const glowIntensity = level <= 2 ? 5 : level <= 4 ? 8 : 12;
     gameCtx.shadowColor = color;
-    gameCtx.shadowBlur = 5;
+    gameCtx.shadowBlur = glowIntensity * boardGlowIntensity;
     gameCtx.strokeStyle = color;
     gameCtx.lineWidth = 1;
     gameCtx.strokeRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
@@ -520,6 +706,14 @@ function updateHUD() {
     document.getElementById('score').textContent = score;
     document.getElementById('lines').textContent = lines;
     document.getElementById('level').textContent = level;
+    
+    // Actualizar indicador de velocidad
+    let speedLabel = 'Lento';
+    if (level >= 2 && level < 3) speedLabel = 'Medio';
+    else if (level >= 3 && level < 5) speedLabel = 'Rápido';
+    else if (level >= 5) speedLabel = '¡CAOS!';
+    
+    document.getElementById('speed').textContent = speedLabel;
 }
 
 // ============ BUCLE PRINCIPAL DEL JUEGO ============
@@ -535,15 +729,21 @@ function gameLoop() {
     // Auto-drop: bajar pieza automáticamente según velocidad
     const now = Date.now();
     if (now - lastDropTime > dropSpeed) {
-        if (!movePiece(0, 1)) {
+        if (!movePiece(0, 1, true)) {
             // No puede bajar, fijar pieza
             fixPiece();
+            playFixSound();
             checkAndClearLines();
             if (gameRunning) {
                 spawnNewPiece();
             }
         }
         lastDropTime = now;
+    }
+    
+    // Reducir intensidad de glow lentamente
+    if (boardGlowIntensity > 0.5) {
+        boardGlowIntensity -= 0.005;
     }
 
     // Dibujar
@@ -589,6 +789,7 @@ document.addEventListener('keydown', (e) => {
 function endGame() {
     gameRunning = false;
     cancelAnimationFrame(gameLoopId);
+    playGameOverSound();
     document.getElementById('finalScore').textContent = score;
     document.getElementById('finalLines').textContent = lines;
     document.getElementById('gameOverModal').classList.remove('hidden');
