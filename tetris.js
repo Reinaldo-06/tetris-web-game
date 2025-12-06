@@ -266,6 +266,7 @@ let gamePaused = false;
 let score = 0;
 let lines = 0;
 let level = 1;
+let minLevel = 1; // El nivel mínimo que el jugador puede alcanzar (establecido al iniciar)
 let dropSpeed = LEVEL_SPEEDS[1];
 
 let lastDropTime = 0;
@@ -350,7 +351,9 @@ function initGame() {
 
     score = 0;
     lines = 0;
+    // IMPORTANTE: Establecer el nivel desde el menú y guardarlo como mínimo
     level = parseInt(document.getElementById('gameLevel').value);
+    minLevel = level; // El jugador nunca puede bajar de este nivel
     dropSpeed = LEVEL_SPEEDS[level];
     gameRunning = true;
     gamePaused = false;
@@ -514,9 +517,12 @@ function updateLineClearing() {
         // Reproducir sonido de línea completada
         playClearSound();
 
-        // Sistema mejorado de progresión de dificultad
-        // Aumentar nivel cada 5 líneas (en lugar de cada 10)
-        const newLevel = Math.floor(lines / 5) + 1;
+        // Sistema de progresión de dificultad: subir nivel cada 5 líneas
+        // IMPORTANTE: El nivel NUNCA puede ser menor que minLevel (el nivel inicial elegido)
+        // Fórmula: nivel = minLevel + (líneas completadas / 5)
+        const linesAboveInitial = Math.max(0, lines - (minLevel - 1) * 5);
+        const newLevel = minLevel + Math.floor(linesAboveInitial / 5);
+        
         if (newLevel !== level) {
             const oldLevel = level;
             level = newLevel;
@@ -526,7 +532,7 @@ function updateLineClearing() {
                 dropSpeed = LEVEL_SPEEDS[level];
             } else {
                 // Si se pasa de los niveles predefinidos, aumentar velocidad dinámicamente
-                dropSpeed = Math.max(30, LEVEL_SPEEDS[4] - (level - 4) * 15);
+                dropSpeed = Math.max(30, LEVEL_SPEEDS[6] - (level - 6) * 10);
                 LEVEL_SPEEDS[level] = dropSpeed;
             }
             
