@@ -20,7 +20,6 @@ const LEVEL_SPEEDS = {
 // ============ MODOS DE JUEGO ============
 const GAME_MODES = {
     CLASSIC: 'classic',
-    SANDBOX: 'sandbox',
     CHALLENGE: 'challenge'
 };
 
@@ -31,13 +30,6 @@ const MODE_CONFIG = {
         levelUpMultiplier: 1.0,
         allowGameOver: true,
         description: 'Tetris clásico tradicional'
-    },
-    sandbox: {
-        name: 'Sandbox',
-        speedMultiplier: 1.0,
-        levelUpMultiplier: 1.0,
-        allowGameOver: false,
-        description: 'Modo libre sin Game Over'
     },
     challenge: {
         name: 'Desafío',
@@ -1016,7 +1008,6 @@ document.getElementById('gameMode').addEventListener('change', (e) => {
     const mode = e.target.value;
     const descriptions = {
         classic: 'Tetris clásico tradicional',
-        sandbox: 'Modo libre sin Game Over - Perfecto para practicar',
         challenge: 'Más difícil y rápido - 20% velocidad, 50% progresión'
     };
     document.getElementById('modeDescription').textContent = descriptions[mode] || '';
@@ -1040,7 +1031,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const mode = document.getElementById('gameMode').value;
     const descriptions = {
         classic: 'Tetris clásico tradicional',
-        sandbox: 'Modo libre sin Game Over - Perfecto para practicar',
         challenge: 'Más difícil y rápido - 20% velocidad, 50% progresión'
     };
     document.getElementById('modeDescription').textContent = descriptions[mode] || '';
