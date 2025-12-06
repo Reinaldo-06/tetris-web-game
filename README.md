@@ -1,4 +1,4 @@
-# 🎮 Tetris Retro Neon - Web Game
+# 🎮 Tetris Neon - Web Game
 
 Un juego de Tetris clásico rediseñado con un espectacular estilo **retro neon** ejecutado en el navegador. Versión avanzada con características modernas, efectos visuales impresionantes y múltiples modos de juego.
 
