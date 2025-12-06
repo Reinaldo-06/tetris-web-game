@@ -764,10 +764,10 @@ function drawNextPiece() {
 
 function setupResponsiveCanvas() {
     const container = document.getElementById('gameContainer');
-    const availableWidth = container.clientWidth * 0.6; // 60% del ancho
-    const availableHeight = container.clientHeight * 0.9; // 90% del alto
+    const availableWidth = container.clientWidth * 0.5; // 60% del ancho
+    const availableHeight = container.clientHeight * 0.8; // 90% del alto
 
-    cellSize = Math.floor(Math.min(availableWidth / COLS, availableHeight / ROWS));
+        cellSize = Math.floor(Math.min(availableWidth / COLS, availableHeight / ROWS));
     
     gameCanvas.width = COLS * cellSize;
     gameCanvas.height = ROWS * cellSize;

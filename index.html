@@ -66,7 +66,21 @@
                 <div class="controls-hint">
                     R: Reiniciar | P: Pausa | ESC: Menú | M: Sonido
                 </div>
-                <canvas id="gameCanvas" width="300" height="600"></canvas>
+                <canvas id="gameCanvas" width="300" height="800"></canvas>
+                <div class="game-stats">
+                    <div class="stat-item">
+                        Modo: <span id="mode" class="stat-value">Clásico</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel lateral -->
+            <div class="side-panel">
+                <div class="sound-control">
+                    <button id="soundToggleBtn" class="sound-button">🔊</button>
+                </div>
+                <h3 class="next-title">Siguiente</h3>
+                <canvas id="nextPieceCanvas" width="120" height="120"></canvas>
                 <div class="hud">
                     <div class="hud-item">
                         <span class="hud-label">Puntuación</span>
@@ -85,20 +99,6 @@
                         <span id="speed" class="hud-value">Lento</span>
                     </div>
                 </div>
-                <div class="game-stats">
-                    <div class="stat-item">
-                        Modo: <span id="mode" class="stat-value">Clásico</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel lateral -->
-            <div class="side-panel">
-                <div class="sound-control">
-                    <button id="soundToggleBtn" class="sound-button">🔊</button>
-                </div>
-                <h3 class="next-title">Siguiente</h3>
-                <canvas id="nextPieceCanvas" width="120" height="120"></canvas>
                 <div class="keyboard-help">
                     <h4>Controles</h4>
                     <ul>
